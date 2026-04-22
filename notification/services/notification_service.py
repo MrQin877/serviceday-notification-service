@@ -90,6 +90,62 @@ class NotificationService:
         broadcast.recipients = success_count
         broadcast.save(update_fields=['recipients'])
         return success_count
+    
+
+    def send_verification_email(self, recipient_email, recipient_name, verification_url):
+        """
+        Called by user-service after registration.
+        POST /api/v1/notifications/send-verification/
+        """
+        subject = "Verify your ServiceDay account"
+        body    = f"""Hi {recipient_name},
+
+        Welcome to ServiceDay! Please verify your email address to activate your account.
+
+        Click the link below to verify:
+        {verification_url}
+
+        This link expires in 1 hour.
+
+        If you did not register, please ignore this email.
+
+        — ServiceDay Team
+        """
+        return self._send_email(
+            recipient_email = recipient_email,
+            recipient_name  = recipient_name,
+            subject         = subject,
+            body            = body,
+            notif_type      = 'verification',
+        )
+
+    def send_reset_password_email(self, recipient_email, recipient_name, reset_url):
+        """
+        Called by user-service after forgot-password is triggered.
+        POST /api/v1/notifications/send-reset-password/
+        """
+        subject = "Reset your ServiceDay password"
+        body    = f"""Hi {recipient_name},
+
+        We received a request to reset your ServiceDay account password.
+
+        Click the link below to set a new password:
+        {reset_url}
+
+        This link expires in 1 hour.
+
+        If you did not request a password reset, please ignore this email.
+        Your password will remain unchanged.
+
+        — ServiceDay Team
+        """
+        return self._send_email(
+            recipient_email = recipient_email,
+            recipient_name  = recipient_name,
+            subject         = subject,
+            body            = body,
+            notif_type      = 'reset_password',
+        )
 
     # ── Reminder engine ───────────────────────────────
     # calls registration-service API to get registrations
@@ -126,14 +182,14 @@ class NotificationService:
                 subject = f"Reminder: {ngo_name} in {config.interval_days} day(s)"
                 body    = f"""Hi {employee_name},
 
-Reminder for upcoming activity:
+                Reminder for upcoming activity:
 
-Activity : {ngo_name}
-Date     : {service_date}
-Time     : {start_time} – {end_time}
+                Activity : {ngo_name}
+                Date     : {service_date}
+                Time     : {start_time} – {end_time}
 
-— ServiceDay Team
-"""
+                — ServiceDay Team
+                """
                 self._send_email(
                     employee_email,
                     employee_name,

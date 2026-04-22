@@ -7,4 +7,6 @@ urlpatterns = [
     path('notifications/broadcasts/',           views.broadcast_list,    name='api-broadcasts-list'),
     path('notifications/logs/',                 views.notification_logs, name='api-notif-logs'),
     path('notifications/trigger-reminders/',    views.trigger_reminders, name='api-trigger-reminders'),
+    path('notifications/send-verification/',    views.send_verification_email,  name='api-send-verification'),
+    path('notifications/send-reset-password/',  views.send_reset_password_email, name='api-send-reset-password'),
 ]

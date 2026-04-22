@@ -11,7 +11,7 @@ Endpoints:
 """
 
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count, Q
@@ -125,6 +125,79 @@ def notification_logs(request):
     serializer = NotificationLogSerializer(qs, many=True)
     return Response(serializer.data)
 
+# ── Verification Emails ───────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])   # user-service calls this, no JWT yet
+def send_verification_email(request):
+    """
+    POST /api/v1/notifications/send-verification/
+    Called by user-service right after registration.
+
+    Expected payload:
+    {
+        "email":             "ali@mail.com",
+        "name":              "Ali",
+        "verification_url":  "http://gateway/verify-email/abc123/"
+    }
+    """
+    email            = request.data.get('email', '').strip()
+    name             = request.data.get('name', '').strip()
+    verification_url = request.data.get('verification_url', '').strip()
+
+    if not all([email, name, verification_url]):
+        return Response(
+            {'error': 'email, name and verification_url are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    from .services.notification_service import NotificationService
+    service = NotificationService()
+    success = service.send_verification_email(email, name, verification_url)
+
+    if success:
+        return Response({'message': 'Verification email sent.'})
+    return Response(
+        {'error': 'Failed to send verification email.'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+# ── Reset Password Emails ─────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])   # user-service calls this, no JWT yet
+def send_reset_password_email(request):
+    """
+    POST /api/v1/notifications/send-reset-password/
+    Called by user-service when forgot-password is triggered.
+
+    Expected payload:
+    {
+        "email":     "ali@mail.com",
+        "name":      "Ali",
+        "reset_url": "http://gateway/reset-password/abc123/"
+    }
+    """
+    email     = request.data.get('email', '').strip()
+    name      = request.data.get('name', '').strip()
+    reset_url = request.data.get('reset_url', '').strip()
+
+    if not all([email, name, reset_url]):
+        return Response(
+            {'error': 'email, name and reset_url are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    from .services.notification_service import NotificationService
+    service = NotificationService()
+    success = service.send_reset_password_email(email, name, reset_url)
+
+    if success:
+        return Response({'message': 'Password reset email sent.'})
+    return Response(
+        {'error': 'Failed to send password reset email.'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
 
 # ── Manual Reminder Trigger ───────────────────────────
 
