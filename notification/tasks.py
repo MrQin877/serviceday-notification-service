@@ -14,14 +14,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_broadcast_task(self, broadcast_id):
-    """
-    Topic 10.2 — Send broadcast emails in the background.
-    Called from the API view so the browser responds instantly
-    while emails are delivered asynchronously via Celery + Redis.
-
-    Retry-safe: already-sent recipients are skipped on retry
-    to prevent duplicate emails.
-    """
+    
     from django.core.mail import send_mail
     from django.conf import settings
     from notification.models import Broadcast, NotificationLog
@@ -107,15 +100,7 @@ def send_broadcast_task(self, broadcast_id):
 
 @shared_task(name='notification.tasks.send_reminder_emails_task')
 def send_reminder_emails_task():
-    """
-    Topic 10.2 — Scheduled daily reminder emails.
-    Celery Beat triggers this every day at 08:00 (Asia/Kuala_Lumpur).
-    Can also be triggered manually via:
-        POST /api/v1/notifications/trigger-reminders/
-
-    The explicit task name ensures the Celery Beat schedule
-    continues to work even if the file is refactored.
-    """
+    
     from notification.services.notification_service import NotificationService
 
     logger.info("[Reminders] Starting scheduled reminder email task.")
