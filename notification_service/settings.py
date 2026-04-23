@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'django_filters',
+    'django_celery_beat',
     'notification',
 ]
 
@@ -109,7 +110,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kuala_Lumpur'
+CELERY_TIMEZONE = 'Asia/Kuala_Lumpur'
 
 USE_I18N = True
 
@@ -154,7 +156,7 @@ SIMPLE_JWT = {
 CACHES = {
     'default': {
         'BACKEND':  'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },
@@ -162,10 +164,13 @@ CACHES = {
     }
 }
  
-# ── Celery (Topic 10) ─────────────────────────────────
-CELERY_BROKER_URL     = 'redis://127.0.0.1:6379/0'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+# ── Celery ─────────────────────────────────
+CELERY_BROKER_URL     = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
  
+# ── Internal Service Token ─────────────────
+INTERNAL_SERVICE_TOKEN = os.environ.get('INTERNAL_SERVICE_TOKEN', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjowLCJ1c2VybmFtZSI6Im5vdGlmaWNhdGlvbi1zZXJ2aWNlLWJvdCIsImdyb3VwcyI6WyJFbXBsb3llZSJdLCJleHAiOjQwNzA5MDg4MDB9.IGtg69tZ7mph5uQ-NWH4x44lJEBoGyhIXmnSmkUwKeE')
+
 # ── Email ─────────────────────────────────────────────
 EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
@@ -175,7 +180,7 @@ EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'noreply.serviceday@gmai
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'xdudqiqxuxdfpejw')
 DEFAULT_FROM_EMAIL  = 'noreply@serviceday.com'
  
-# ── Other services URLs (Topic 11) ────────────────────
+# ── Other services URLs  ────────────────────
 NGO_SERVICE_URL          = os.environ.get('NGO_SERVICE_URL',          'http://127.0.0.1:8002')
 REGISTRATION_SERVICE_URL = os.environ.get('REGISTRATION_SERVICE_URL', 'http://127.0.0.1:8003')
 USER_SERVICE_URL         = os.environ.get('USER_SERVICE_URL',         'http://127.0.0.1:8001')

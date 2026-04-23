@@ -206,6 +206,66 @@ def send_reset_password_email(request):
         status=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
 
+# ── Registration Confirmation Emails ───────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # internal service call, no JWT
+def send_confirmation_email(request):
+    employee_id     = request.data.get('employee_id')
+    ngo_id          = request.data.get('ngo_id')
+    registration_id = request.data.get('registration_id')
+
+    if not all([employee_id, ngo_id, registration_id]):
+        return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from .services.notification_service import NotificationService
+    service = NotificationService()
+    success = service.send_confirmation_email(employee_id, ngo_id, registration_id)
+
+    if success:
+        return Response({'message': 'Confirmation email sent.'})
+    return Response({'error': 'Failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ── Registration Cancellation Emails ─────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_cancellation_email(request):
+    employee_id = request.data.get('employee_id')
+    ngo_id      = request.data.get('ngo_id')
+
+    if not all([employee_id, ngo_id]):
+        return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from .services.notification_service import NotificationService
+    service = NotificationService()
+    success = service.send_cancellation_email(employee_id, ngo_id)
+
+    if success:
+        return Response({'message': 'Cancellation email sent.'})
+    return Response({'error': 'Failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ── Registration Switch Emails ─────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_switch_email(request):
+    employee_id = request.data.get('employee_id')
+    old_ngo_id  = request.data.get('old_ngo_id')
+    new_ngo_id  = request.data.get('new_ngo_id')
+
+    if not all([employee_id, old_ngo_id, new_ngo_id]):
+        return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from .services.notification_service import NotificationService
+    service = NotificationService()
+    success = service.send_switch_email(employee_id, old_ngo_id, new_ngo_id)
+
+    if success:
+        return Response({'message': 'Switch email sent.'})
+    return Response({'error': 'Failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 # ── Manual Reminder Trigger ───────────────────────────
 
 @api_view(['POST'])

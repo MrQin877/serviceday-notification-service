@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 
 class NotificationService:
 
+    # ── Internal service-to-service auth header ───────
+
+    def _internal_headers(self):
+
+        token = getattr(settings, 'INTERNAL_SERVICE_TOKEN', '')
+        return {'Authorization': f'Bearer {token}'} if token else {}
+
     # ── Core email sender ─────────────────────────────
 
     def _send_email(
@@ -49,6 +56,7 @@ class NotificationService:
         except Exception as e:
             success     = False
             fail_reason = str(e)
+            logger.warning(f"[Email] Failed to send to {recipient_email}: {e}")
 
         log = NotificationLog.objects.create(
             recipient_email   = recipient_email,
@@ -90,7 +98,8 @@ class NotificationService:
         broadcast.recipients = success_count
         broadcast.save(update_fields=['recipients'])
         return success_count
-    
+
+    # ── Verification Email ────────────────────────────
 
     def send_verification_email(self, recipient_email, recipient_name, verification_url):
         """
@@ -119,6 +128,8 @@ class NotificationService:
             notif_type      = 'verification',
         )
 
+    # ── Reset Password Email ──────────────────────────
+
     def send_reset_password_email(self, recipient_email, recipient_name, reset_url):
         """
         Called by user-service after forgot-password is triggered.
@@ -127,18 +138,18 @@ class NotificationService:
         subject = "Reset your ServiceDay password"
         body    = f"""Hi {recipient_name},
 
-        We received a request to reset your ServiceDay account password.
+We received a request to reset your ServiceDay account password.
 
-        Click the link below to set a new password:
-        {reset_url}
+Click the link below to set a new password:
+{reset_url}
 
-        This link expires in 1 hour.
+This link expires in 1 hour.
 
-        If you did not request a password reset, please ignore this email.
-        Your password will remain unchanged.
+If you did not request a password reset, please ignore this email.
+Your password will remain unchanged.
 
-        — ServiceDay Team
-        """
+— ServiceDay Team
+"""
         return self._send_email(
             recipient_email = recipient_email,
             recipient_name  = recipient_name,
@@ -147,28 +158,245 @@ class NotificationService:
             notif_type      = 'reset_password',
         )
 
-    # ── Reminder engine ───────────────────────────────
+    # ── Registration Confirmation Email ───────────────
+
+    def send_confirmation_email(self, employee_id, ngo_id, registration_id):
+        """
+        Called by registration-service after successful registration.
+        POST /api/v1/notifications/send-confirmation/
+        Fetches employee and NGO details from respective services.
+        """
+        headers = self._internal_headers()
+
+        # fetch employee details from user-service
+        try:
+            user_resp = requests.get(
+                f"{settings.USER_SERVICE_URL}/api/v1/users/{employee_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            user_resp.raise_for_status()
+            user = user_resp.json()
+        except Exception as e:
+            logger.error(f"[Confirmation] Failed to fetch user {employee_id}: {e}")
+            return False
+
+        # fetch NGO details from ngo-service
+        try:
+            ngo_resp = requests.get(
+                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{ngo_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            ngo_resp.raise_for_status()
+            ngo = ngo_resp.json()
+        except Exception as e:
+            logger.error(f"[Confirmation] Failed to fetch NGO {ngo_id}: {e}")
+            return False
+
+        recipient_email = user.get('email', '')
+        recipient_name  = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        ngo_name        = ngo.get('name', '')
+        service_date    = ngo.get('service_date', '')
+        start_time      = ngo.get('start_time', '')
+        end_time        = ngo.get('end_time', '')
+        location        = ngo.get('location', '')
+
+        subject = f"Registration Confirmed — {ngo_name}"
+        body    = f"""Hi {recipient_name},
+
+Your registration has been confirmed!
+
+Activity    : {ngo_name}
+Date        : {service_date}
+Time        : {start_time} – {end_time}
+Location    : {location}
+Reference   : #{registration_id}
+
+See you there!
+
+— ServiceDay Team
+"""
+        return self._send_email(
+            recipient_email = recipient_email,
+            recipient_name  = recipient_name,
+            subject         = subject,
+            body            = body,
+            notif_type      = 'confirmation',
+            ngo_id          = ngo_id,
+            ngo_name        = ngo_name,
+        )
+
+    # ── Registration Cancellation Email ───────────────
+
+    def send_cancellation_email(self, employee_id, ngo_id):
+        """
+        Called by registration-service after cancellation.
+        POST /api/v1/notifications/send-cancellation/
+        """
+        headers = self._internal_headers()
+
+        try:
+            user_resp = requests.get(
+                f"{settings.USER_SERVICE_URL}/api/v1/users/{employee_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            user_resp.raise_for_status()
+            user = user_resp.json()
+        except Exception as e:
+            logger.error(f"[Cancellation] Failed to fetch user {employee_id}: {e}")
+            return False
+
+        try:
+            ngo_resp = requests.get(
+                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{ngo_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            ngo_resp.raise_for_status()
+            ngo = ngo_resp.json()
+        except Exception as e:
+            logger.error(f"[Cancellation] Failed to fetch NGO {ngo_id}: {e}")
+            return False
+
+        recipient_email = user.get('email', '')
+        recipient_name  = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        ngo_name        = ngo.get('name', '')
+        service_date    = ngo.get('service_date', '')
+
+        subject = f"Registration Cancelled — {ngo_name}"
+        body    = f"""Hi {recipient_name},
+
+Your registration has been cancelled.
+
+Activity : {ngo_name}
+Date     : {service_date}
+
+If this was a mistake, you may re-register while slots are still available.
+
+— ServiceDay Team
+"""
+        return self._send_email(
+            recipient_email = recipient_email,
+            recipient_name  = recipient_name,
+            subject         = subject,
+            body            = body,
+            notif_type      = 'cancellation',
+            ngo_id          = ngo_id,
+            ngo_name        = ngo_name,
+        )
+
+    # ── Registration Switch Email ─────────────────────
+
+    def send_switch_email(self, employee_id, old_ngo_id, new_ngo_id):
+        """
+        Called by registration-service after activity switch.
+        POST /api/v1/notifications/send-switch/
+        """
+        headers = self._internal_headers()
+
+        try:
+            user_resp = requests.get(
+                f"{settings.USER_SERVICE_URL}/api/v1/users/{employee_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            user_resp.raise_for_status()
+            user = user_resp.json()
+        except Exception as e:
+            logger.error(f"[Switch] Failed to fetch user {employee_id}: {e}")
+            return False
+
+        try:
+            old_ngo_resp = requests.get(
+                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{old_ngo_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            old_ngo_resp.raise_for_status()
+            old_ngo = old_ngo_resp.json()
+
+            new_ngo_resp = requests.get(
+                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{new_ngo_id}/",
+                headers = headers,
+                timeout = 10,
+            )
+            new_ngo_resp.raise_for_status()
+            new_ngo = new_ngo_resp.json()
+        except Exception as e:
+            logger.error(f"[Switch] Failed to fetch NGO details: {e}")
+            return False
+
+        recipient_email = user.get('email', '')
+        recipient_name  = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        old_ngo_name    = old_ngo.get('name', '')
+        new_ngo_name    = new_ngo.get('name', '')
+        new_date        = new_ngo.get('service_date', '')
+        new_start       = new_ngo.get('start_time', '')
+        new_end         = new_ngo.get('end_time', '')
+        new_location    = new_ngo.get('location', '')
+
+        subject = f"Activity Switched — {new_ngo_name}"
+        body    = f"""Hi {recipient_name},
+
+Your activity registration has been switched successfully.
+
+From : {old_ngo_name}
+To   : {new_ngo_name}
+
+New activity details:
+Date     : {new_date}
+Time     : {new_start} – {new_end}
+Location : {new_location}
+
+— ServiceDay Team
+"""
+        return self._send_email(
+            recipient_email = recipient_email,
+            recipient_name  = recipient_name,
+            subject         = subject,
+            body            = body,
+            notif_type      = 'switch',
+            ngo_id          = new_ngo_id,
+            ngo_name        = new_ngo_name,
+        )
+
+    # ── Reminder Engine ───────────────────────────────
+    # Topic 10.2 — called by Celery Beat every day at 08:00
     # calls registration-service API to get registrations
     # calls ngo-service API to get NGO details
 
     def send_activity_reminders(self):
         from notification.models import ReminderConfig
 
-        today = timezone.now().date()
+        today   = timezone.now().date()
+        headers = self._internal_headers()
 
         for config in ReminderConfig.objects.filter(is_active=True):
             target_date = today + timedelta(days=config.interval_days)
+
+            logger.info(f"[Reminders] Fetching registrations for {target_date} ({config.interval_days}-day reminder).")
 
             # call registration-service to get registrations for target date
             try:
                 response = requests.get(
                     f"{settings.REGISTRATION_SERVICE_URL}/api/v1/registrations/",
-                    params={'service_date': target_date.isoformat()},
+                    params  = {'service_date': target_date.isoformat()},
+                    headers = headers,   # ← authenticated with internal token
+                    timeout = 10,
                 )
+                response.raise_for_status()
                 registrations = response.json().get('results', [])
             except Exception as e:
-                logger.error(f"Failed to fetch registrations: {e}")
+                logger.error(f"[Reminders] Failed to fetch registrations for {target_date}: {e}")
                 continue
+
+            if not registrations:
+                logger.info(f"[Reminders] No registrations found for {target_date}.")
+                continue
+
+            logger.info(f"[Reminders] Sending {len(registrations)} reminder(s) for {target_date}.")
 
             for reg in registrations:
                 employee_email = reg.get('employee_email', '')
@@ -178,29 +406,37 @@ class NotificationService:
                 service_date   = reg.get('service_date', '')
                 start_time     = reg.get('start_time', '')
                 end_time       = reg.get('end_time', '')
+                location       = reg.get('location', '')
+
+                if not employee_email:
+                    logger.warning(f"[Reminders] Skipping registration with no email: {reg}")
+                    continue
 
                 subject = f"Reminder: {ngo_name} in {config.interval_days} day(s)"
                 body    = f"""Hi {employee_name},
 
-                Reminder for upcoming activity:
+This is a reminder for your upcoming ServiceDay activity.
 
-                Activity : {ngo_name}
-                Date     : {service_date}
-                Time     : {start_time} – {end_time}
+Activity : {ngo_name}
+Date     : {service_date}
+Time     : {start_time} – {end_time}
+Location : {location}
 
-                — ServiceDay Team
-                """
+We look forward to seeing you there!
+
+— ServiceDay Team
+"""
                 self._send_email(
-                    employee_email,
-                    employee_name,
-                    subject,
-                    body,
-                    "reminder",
-                    ngo_id   = ngo_id,
-                    ngo_name = ngo_name,
+                    recipient_email = employee_email,
+                    recipient_name  = employee_name,
+                    subject         = subject,
+                    body            = body,
+                    notif_type      = 'reminder',
+                    ngo_id          = ngo_id,
+                    ngo_name        = ngo_name,
                 )
 
-    # ── Reminder config management ────────────────────
+    # ── Reminder Config Management ────────────────────
 
     def get_reminder_configs(self):
         from notification.models import ReminderConfig
@@ -209,8 +445,8 @@ class NotificationService:
     def save_reminder_config(self, interval_days, is_active=True):
         from notification.models import ReminderConfig
         config, created = ReminderConfig.objects.get_or_create(
-            interval_days=interval_days,
-            defaults={"is_active": is_active},
+            interval_days = interval_days,
+            defaults      = {"is_active": is_active},
         )
         if not created:
             config.is_active = is_active
@@ -230,7 +466,7 @@ class NotificationService:
             config.save()
         return config
 
-    # ── Broadcast history ─────────────────────────────
+    # ── Broadcast History ─────────────────────────────
 
     def get_broadcast_history(self):
         from notification.models import Broadcast
@@ -239,7 +475,7 @@ class NotificationService:
             failed_count = Count('logs', filter=Q(logs__is_success=False)),
         ).order_by('-sent_at')
 
-    # ── Log queries ───────────────────────────────────
+    # ── Log Queries ───────────────────────────────────
 
     def get_logs(self, filter_type=None):
         from notification.models import NotificationLog
@@ -257,35 +493,49 @@ class NotificationService:
             failed      = Count('id', filter=Q(is_success=False)),
         )
 
-    # ── Recipient resolution ──────────────────────────
+    # ── Recipient Resolution ──────────────────────────
     # calls user-service API to get all employee emails
 
     def get_recipient_emails(self, target, ngo_ids=None):
+        headers = self._internal_headers()
+
         try:
             if target == "all":
                 response = requests.get(
                     f"{settings.USER_SERVICE_URL}/api/v1/users/employees/",
+                    headers = headers,   # ← authenticated with internal token
+                    timeout = 10,
                 )
+                response.raise_for_status()
                 return response.json().get('emails', [])
 
             if target == "activity" and ngo_ids:
                 response = requests.get(
                     f"{settings.REGISTRATION_SERVICE_URL}/api/v1/registrations/emails/",
-                    params={'ngo_ids': ngo_ids},
+                    params  = {'ngo_ids': ngo_ids},
+                    headers = headers,   # ← authenticated with internal token
+                    timeout = 10,
                 )
+                response.raise_for_status()
                 return response.json().get('emails', [])
+
         except Exception as e:
-            logger.error(f"Failed to fetch recipient emails: {e}")
+            logger.error(f"[Recipients] Failed to fetch recipient emails (target={target}): {e}")
 
         return []
 
+    # ── Active NGOs ───────────────────────────────────
+
     def get_active_ngos(self):
-        # calls ngo-service API
+        """Calls ngo-service API to get active NGO list."""
         try:
             response = requests.get(
                 f"{settings.NGO_SERVICE_URL}/api/v1/activities/",
+                headers = self._internal_headers(),
+                timeout = 10,
             )
+            response.raise_for_status()
             return response.json().get('results', [])
         except Exception as e:
-            logger.error(f"Failed to fetch NGOs: {e}")
+            logger.error(f"[NGOs] Failed to fetch active NGOs: {e}")
             return []
