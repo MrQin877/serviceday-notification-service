@@ -108,7 +108,8 @@ def broadcast_list(request):
     elif request.method == 'POST':
         serializer = BroadcastSerializer(data=request.data)
         if serializer.is_valid():
-            broadcast = serializer.save(sent_by=request.user.username)
+            sent_by = request.user.get('username', 'Admin') if isinstance(request.user, dict) else request.user.username
+            broadcast = serializer.save(sent_by=sent_by)
             # Topic 10 — hand off to Celery background task
             from .tasks import send_broadcast_task
             send_broadcast_task.delay(broadcast.id)

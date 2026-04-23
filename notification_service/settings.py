@@ -178,7 +178,7 @@ EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
 EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'noreply.serviceday@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'xdudqiqxuxdfpejw')
-DEFAULT_FROM_EMAIL  = 'noreply@serviceday.com'
+DEFAULT_FROM_EMAIL  = 'noreply.serviceday@gmail.com'
  
 # ── Other services URLs  ────────────────────
 NGO_SERVICE_URL          = os.environ.get('NGO_SERVICE_URL',          'http://127.0.0.1:8002')
