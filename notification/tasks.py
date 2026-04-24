@@ -7,6 +7,8 @@ Topic 10 — Asynchronous Processing & Task Scheduling.
 import logging
 from celery import shared_task
 
+from notification.services.notification_service import NotificationService
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,10 +28,10 @@ def send_broadcast_task(self, broadcast_id):
         return
 
     try:
-        service = NotificationService()
-        emails  = service.get_recipient_emails(
+        service          = NotificationService()
+        emails, user_map = service.get_recipient_emails(  # ← unpack tuple
             broadcast.target,
-            ngo_ids=broadcast.ngo_ids  # ← pass ngo_ids
+            ngo_ids=broadcast.ngo_ids
         )
     except Exception as exc:
         logger.error(f"[Broadcast] Failed to resolve recipients: {exc}")
@@ -38,7 +40,7 @@ def send_broadcast_task(self, broadcast_id):
     if not emails:
         logger.info(f"[Broadcast] No recipients found for ID {broadcast_id}.")
         return
-
+    
     already_sent = set(
         NotificationLog.objects.filter(
             broadcast=broadcast,
@@ -47,12 +49,13 @@ def send_broadcast_task(self, broadcast_id):
     )
 
     success_count = 0
-    from_email    = settings.EMAIL_HOST_USER  # ← fix from_email
+    from_email    = settings.EMAIL_HOST_USER
 
     for email in emails:
         if email in already_sent:
             continue
 
+        name        = user_map.get(email, email.split('@')[0])  # ← get name
         ok          = True
         fail_reason = ''
         try:
@@ -70,7 +73,7 @@ def send_broadcast_task(self, broadcast_id):
 
         NotificationLog.objects.create(
             recipient_email   = email,
-            recipient_name    = '',
+            recipient_name    = name,   # ← use name
             notification_type = 'broadcast',
             subject           = broadcast.subject,
             body              = broadcast.body,

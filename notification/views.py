@@ -13,8 +13,11 @@ Endpoints:
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import status
 from django.db.models import Count, Q
+from .tasks import send_broadcast_task, send_reminder_emails_task
+from .services.notification_service import NotificationService
 
 from .models import Broadcast, NotificationLog, ReminderConfig
 from .serializers import (
@@ -28,7 +31,12 @@ class IsAdminUser(BasePermission):
     def has_permission(self, request, view):
         if not request.user:
             return False
-        groups = request.user.get('groups', [])
+        user = getattr(request, "user", None)
+
+        if not isinstance(user, dict):
+            return False
+
+        groups = user.get("groups", [])
         return 'Administrator' in groups
 
 # ── Reminders ─────────────────────────────────────────
@@ -111,27 +119,59 @@ def broadcast_list(request):
             sent_by = request.user.get('username', 'Admin') if isinstance(request.user, dict) else request.user.username
             ngo_ids = request.data.get('ngo_ids', [])   # ← get ngo_ids
             broadcast = serializer.save(sent_by=sent_by, ngo_ids=ngo_ids)  # ← save
-            from .tasks import send_broadcast_task
             send_broadcast_task.delay(broadcast.id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def broadcast_progress(request, broadcast_id):
+    """
+    GET /api/v1/notifications/broadcasts/<id>/progress/
+    Returns current sending progress for a broadcast.
+    """
+    try:
+        broadcast = Broadcast.objects.get(id=broadcast_id)
+    except Broadcast.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    sent   = NotificationLog.objects.filter(broadcast=broadcast, is_success=True).count()
+    failed = NotificationLog.objects.filter(broadcast=broadcast, is_success=False).count()
+    total  = sent + failed
+
+    return Response({
+        'id':         broadcast.id,
+        'subject':    broadcast.subject,
+        'sent':       sent,
+        'failed':     failed,
+        'total':      total,
+        'recipients': broadcast.recipients,
+        'done':       broadcast.recipients > 0 and total >= broadcast.recipients,
+    })
 
 # ── Notification Logs ─────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def notification_logs(request):
-    """
-    GET /api/v1/notifications/logs/
-    Optional filter: ?notification_type=reminder
-    """
     qs          = NotificationLog.objects.order_by('-sent_at')
     filter_type = request.query_params.get('notification_type')
     if filter_type:
         qs = qs.filter(notification_type=filter_type)
-    serializer = NotificationLogSerializer(qs, many=True)
-    return Response(serializer.data)
+
+    # pagination
+    paginator           = PageNumberPagination()
+    paginator.page_size = int(request.query_params.get('page_size', 10))
+    page                = paginator.paginate_queryset(qs, request)
+    serializer          = NotificationLogSerializer(page, many=True)
+
+    return Response({
+        'count':    paginator.page.paginator.count,
+        'next':     paginator.get_next_link(),
+        'previous': paginator.get_previous_link(),
+        'results':  serializer.data,
+    })
 
 # ── Verification Emails ───────────────────────────────
 
@@ -159,7 +199,6 @@ def send_verification_email(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    from .services.notification_service import NotificationService
     service = NotificationService()
     success = service.send_verification_email(email, name, verification_url)
 
@@ -196,7 +235,6 @@ def send_reset_password_email(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    from .services.notification_service import NotificationService
     service = NotificationService()
     success = service.send_reset_password_email(email, name, reset_url)
 
@@ -219,7 +257,6 @@ def send_confirmation_email(request):
     if not all([employee_id, ngo_id, registration_id]):
         return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from .services.notification_service import NotificationService
     service = NotificationService()
     success = service.send_confirmation_email(employee_id, ngo_id, registration_id)
 
@@ -238,7 +275,6 @@ def send_cancellation_email(request):
     if not all([employee_id, ngo_id]):
         return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from .services.notification_service import NotificationService
     service = NotificationService()
     success = service.send_cancellation_email(employee_id, ngo_id)
 
@@ -258,7 +294,6 @@ def send_switch_email(request):
     if not all([employee_id, old_ngo_id, new_ngo_id]):
         return Response({'error': 'Missing fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from .services.notification_service import NotificationService
     service = NotificationService()
     success = service.send_switch_email(employee_id, old_ngo_id, new_ngo_id)
 
@@ -276,9 +311,9 @@ def trigger_reminders(request):
     POST /api/v1/notifications/trigger-reminders/
     Manually trigger reminder emails for testing.
     """
-    from .tasks import send_reminder_emails_task
     send_reminder_emails_task.delay()
     return Response(
         {'detail': 'Reminder task queued successfully.'},
         status=status.HTTP_202_ACCEPTED
     )
+

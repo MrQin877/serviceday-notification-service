@@ -506,21 +506,27 @@ We look forward to seeing you there!
                     timeout=10,
                 )
                 response.raise_for_status()
-                return response.json().get('emails', [])
+                data     = response.json()
+                emails   = data.get('emails', [])
+                user_map = data.get('user_map', {})  # ← get user map
+                return emails, user_map               # ← return both
 
             if target == "activity" and ngo_ids:
                 response = requests.get(
                     f"{settings.REGISTRATION_SERVICE_URL}/api/v1/registrations/emails/",
-                    params={'ngo_ids': ngo_ids},  # ← pass ngo_ids
+                    params={'ngo_ids': ngo_ids},
                     headers=headers,
                     timeout=10,
                 )
                 response.raise_for_status()
-                return response.json().get('emails', [])
+                data     = response.json()
+                emails   = data.get('emails', [])
+                user_map = data.get('user_map', {})
+                return emails, user_map
 
         except Exception as e:
-            logger.error(f"[Recipients] Failed to fetch emails (target={target}): {e}")
-        return []
+            logger.error(f"[Recipients] Failed: {e}")
+        return [], {}
 
     # ── Active NGOs ───────────────────────────────────
 
@@ -537,3 +543,5 @@ We look forward to seeing you there!
         except Exception as e:
             logger.error(f"[NGOs] Failed to fetch active NGOs: {e}")
             return []
+        
+        

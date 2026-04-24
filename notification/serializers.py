@@ -37,7 +37,7 @@ class NotificationLogSerializer(serializers.ModelSerializer):
         model  = NotificationLog
         fields = [
             'id', 'recipient_email', 'recipient_name',
-            'notification_type', 'subject',
+            'notification_type', 'subject', 'body',
             'sent_at', 'is_success', 'fail_reason',
             'ngo_id', 'ngo_name',
         ]

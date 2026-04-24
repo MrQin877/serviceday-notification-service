@@ -1,21 +1,27 @@
 from rest_framework.permissions import BasePermission
 
-
-
-
 class IsEmployee(BasePermission):
     def has_permission(self, request, view):
-        if not request.user:
+        user = getattr(request, "user", None)
+
+        if not isinstance(user, dict):
             return False
-        groups = request.user.get('groups', [])
-        if 'Administrator' in groups:
+
+        groups = user.get("groups", [])
+
+        if "Administrator" in groups:
             return False
-        return 'Employee' in groups
+
+        return "Employee" in groups
 
 
 class IsAdminOrEmployee(BasePermission):
     def has_permission(self, request, view):
-        if not request.user:
+        user = getattr(request, "user", None)
+
+        if not isinstance(user, dict):
             return False
-        groups = request.user.get('groups', [])
-        return bool(set(groups) & {'Administrator', 'Employee'})
+
+        groups = user.get("groups", [])
+
+        return bool(set(groups) & {"Administrator", "Employee"})
