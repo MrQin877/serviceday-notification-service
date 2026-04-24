@@ -109,8 +109,8 @@ def broadcast_list(request):
         serializer = BroadcastSerializer(data=request.data)
         if serializer.is_valid():
             sent_by = request.user.get('username', 'Admin') if isinstance(request.user, dict) else request.user.username
-            broadcast = serializer.save(sent_by=sent_by)
-            # Topic 10 — hand off to Celery background task
+            ngo_ids = request.data.get('ngo_ids', [])   # ← get ngo_ids
+            broadcast = serializer.save(sent_by=sent_by, ngo_ids=ngo_ids)  # ← save
             from .tasks import send_broadcast_task
             send_broadcast_task.delay(broadcast.id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)

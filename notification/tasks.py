@@ -14,32 +14,31 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_broadcast_task(self, broadcast_id):
-    
     from django.core.mail import send_mail
     from django.conf import settings
     from notification.models import Broadcast, NotificationLog
     from notification.services.notification_service import NotificationService
 
-    # ── 1. Fetch broadcast record ─────────────────────────────────────────────
     try:
         broadcast = Broadcast.objects.get(id=broadcast_id)
     except Broadcast.DoesNotExist:
-        logger.warning(f"[Broadcast] ID {broadcast_id} not found — skipping task.")
+        logger.warning(f"[Broadcast] ID {broadcast_id} not found.")
         return
 
-    # ── 2. Resolve recipient emails ───────────────────────────────────────────
     try:
         service = NotificationService()
-        emails  = service.get_recipient_emails(broadcast.target)
+        emails  = service.get_recipient_emails(
+            broadcast.target,
+            ngo_ids=broadcast.ngo_ids  # ← pass ngo_ids
+        )
     except Exception as exc:
-        logger.error(f"[Broadcast] Failed to resolve recipients for ID {broadcast_id}: {exc}")
+        logger.error(f"[Broadcast] Failed to resolve recipients: {exc}")
         raise self.retry(exc=exc)
 
     if not emails:
         logger.info(f"[Broadcast] No recipients found for ID {broadcast_id}.")
         return
 
-    # ── 3. Skip already-sent recipients (retry-safe) ──────────────────────────
     already_sent = set(
         NotificationLog.objects.filter(
             broadcast=broadcast,
@@ -47,18 +46,15 @@ def send_broadcast_task(self, broadcast_id):
         ).values_list('recipient_email', flat=True)
     )
 
-    # ── 4. Send emails ────────────────────────────────────────────────────────
     success_count = 0
-    from_email    = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@serviceday.com')
+    from_email    = settings.EMAIL_HOST_USER  # ← fix from_email
 
     for email in emails:
         if email in already_sent:
-            logger.debug(f"[Broadcast] Skipping {email} — already sent.")
             continue
 
         ok          = True
         fail_reason = ''
-
         try:
             send_mail(
                 subject        = broadcast.subject,
@@ -82,18 +78,12 @@ def send_broadcast_task(self, broadcast_id):
             fail_reason       = fail_reason,
             broadcast         = broadcast,
         )
-
         if ok:
             success_count += 1
 
-    # ── 5. Update sent count ──────────────────────────────────────────────────
     broadcast.recipients = success_count
     broadcast.save(update_fields=['recipients'])
-
-    logger.info(
-        f"[Broadcast] ID {broadcast_id} completed: "
-        f"{success_count}/{len(emails)} emails sent successfully."
-    )
+    logger.info(f"[Broadcast] ID {broadcast_id}: {success_count}/{len(emails)} sent.")
 
 
 # ── Scheduled Reminder Emails (Topic 10.2) ────────────────────────────────────

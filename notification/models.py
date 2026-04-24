@@ -27,13 +27,14 @@ class Broadcast(models.Model):
     subject    = models.CharField(max_length=200)
     body       = models.TextField()
     target     = models.CharField(max_length=20, choices=TARGET_CHOICES, default='all')
+    ngo_ids    = models.JSONField(default=list, blank=True)  # ← ADD THIS
     sent_at    = models.DateTimeField(auto_now_add=True)
     sent_by    = models.CharField(max_length=100, default='Admin')
     recipients = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering       = ['-sent_at']
-        verbose_name   = "Broadcast Message"
+        ordering            = ['-sent_at']
+        verbose_name        = "Broadcast Message"
         verbose_name_plural = "Broadcast Messages"
 
     def __str__(self):
@@ -51,6 +52,8 @@ class NotificationLog(models.Model):
         ('update',       'Activity Update'),
         ('cancellation', 'Cancellation'),
         ('broadcast',    'Admin Broadcast'),
+        ('switch',       'Activity Switch'),       # ← ADD
+        ('verification', 'Email Verification'),    # ← ADD
     ]
     recipient_email   = models.EmailField()
     recipient_name    = models.CharField(max_length=100, blank=True)

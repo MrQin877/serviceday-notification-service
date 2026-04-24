@@ -498,30 +498,28 @@ We look forward to seeing you there!
 
     def get_recipient_emails(self, target, ngo_ids=None):
         headers = self._internal_headers()
-        print("=== GET RECIPIENT EMAILS ===")
-        print("TARGET:", target)
-        print("HEADERS:", headers)
-        print("USER SERVICE URL:", settings.USER_SERVICE_URL)
-        print("FULL URL:", f"{settings.USER_SERVICE_URL}/api/v1/users/employees/emails/")
-        
         try:
             if target == "all":
                 response = requests.get(
                     f"{settings.USER_SERVICE_URL}/api/v1/users/employees/emails/",
-                    headers = headers,
-                    timeout = 10,
+                    headers=headers,
+                    timeout=10,
                 )
-                print("STATUS CODE:", response.status_code)
-                print("RAW RESPONSE:", response.text)
                 response.raise_for_status()
-                data = response.json()
-                print("PARSED DATA:", data)
-                emails = data.get('emails', [])
-                print("EMAILS:", emails)
-                return emails
+                return response.json().get('emails', [])
+
+            if target == "activity" and ngo_ids:
+                response = requests.get(
+                    f"{settings.REGISTRATION_SERVICE_URL}/api/v1/registrations/emails/",
+                    params={'ngo_ids': ngo_ids},  # ← pass ngo_ids
+                    headers=headers,
+                    timeout=10,
+                )
+                response.raise_for_status()
+                return response.json().get('emails', [])
+
         except Exception as e:
-            print("EXCEPTION:", e)
-            logger.error(f"[Recipients] Failed to fetch recipient emails: {e}")
+            logger.error(f"[Recipients] Failed to fetch emails (target={target}): {e}")
         return []
 
     # ── Active NGOs ───────────────────────────────────
