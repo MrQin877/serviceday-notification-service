@@ -184,7 +184,7 @@ Your password will remain unchanged.
         # fetch NGO details from ngo-service
         try:
             ngo_resp = requests.get(
-                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{ngo_id}/",
+                f"{settings.NGO_SERVICE_URL}/api/v1/activities/{ngo_id}/",
                 headers = headers,
                 timeout = 10,
             )
@@ -250,7 +250,7 @@ See you there!
 
         try:
             ngo_resp = requests.get(
-                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{ngo_id}/",
+                f"{settings.NGO_SERVICE_URL}/api/v1/activities/{ngo_id}/",
                 headers = headers,
                 timeout = 10,
             )
@@ -310,7 +310,7 @@ If this was a mistake, you may re-register while slots are still available.
 
         try:
             old_ngo_resp = requests.get(
-                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{old_ngo_id}/",
+                f"{settings.NGO_SERVICE_URL}/api/v1/activities/{old_ngo_id}/",
                 headers = headers,
                 timeout = 10,
             )
@@ -318,7 +318,7 @@ If this was a mistake, you may re-register while slots are still available.
             old_ngo = old_ngo_resp.json()
 
             new_ngo_resp = requests.get(
-                f"{settings.NGO_SERVICE_URL}/api/v1/ngos/{new_ngo_id}/",
+                f"{settings.NGO_SERVICE_URL}/api/v1/activities/{new_ngo_id}/",
                 headers = headers,
                 timeout = 10,
             )
