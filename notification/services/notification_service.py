@@ -388,6 +388,7 @@ Location : {new_location}
                 )
                 response.raise_for_status()
                 registrations = response.json().get('results', [])
+                
             except Exception as e:
                 logger.error(f"[Reminders] Failed to fetch registrations for {target_date}: {e}")
                 continue
@@ -395,10 +396,13 @@ Location : {new_location}
             if not registrations:
                 logger.info(f"[Reminders] No registrations found for {target_date}.")
                 continue
-
+            logger.info(f"[Reminders] TODAY = {today}")
+            logger.info(f"[Reminders] INTERVAL = {config.interval_days}")
+            logger.info(f"[Reminders] TARGET DATE = {target_date}")
             logger.info(f"[Reminders] Sending {len(registrations)} reminder(s) for {target_date}.")
 
             for reg in registrations:
+                logger.info(f"[Reminders] REGISTRATION = {reg}")
                 employee_email = reg.get('employee_email', '')
                 employee_name  = reg.get('employee_name', '')
                 ngo_name       = reg.get('ngo_name', '')

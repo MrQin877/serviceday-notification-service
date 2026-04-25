@@ -13,6 +13,6 @@ app.autodiscover_tasks(['notification'])
 app.conf.beat_schedule = {
     'daily-reminders': {
         'task':     'notification.tasks.send_reminder_emails_task',
-        'schedule': crontab(hour=8, minute=0),
+        'schedule': crontab(hour=1, minute=0),
     },
 }
