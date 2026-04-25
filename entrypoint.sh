@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo "Running migrations..."
+python manage.py migrate
+
 echo "Starting Celery Beat..."
 celery -A notification_service beat -l info &
 
