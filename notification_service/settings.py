@@ -13,6 +13,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv  
+
+load_dotenv()  
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,6 +36,7 @@ ALLOWED_HOSTS = os.environ.get('NOTIFICATION_SERVICE_URL', '127.0.0.1 localhost'
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,6 +46,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'django_celery_beat',
+    'channels',
     'notification',
 ]
 
@@ -72,8 +78,16 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'notification_service.wsgi.application'
+ASGI_APPLICATION = 'notification_service.asgi.application'
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')],
+        },
+    }
+}
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
@@ -176,7 +190,7 @@ EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
-EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', )
+EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL  = 'noreply.serviceday@gmail.com'
  
@@ -184,3 +198,17 @@ DEFAULT_FROM_EMAIL  = 'noreply.serviceday@gmail.com'
 NGO_SERVICE_URL          = os.environ.get('NGO_SERVICE_URL',          'http://127.0.0.1:8002')
 REGISTRATION_SERVICE_URL = os.environ.get('REGISTRATION_SERVICE_URL', 'http://127.0.0.1:8003')
 USER_SERVICE_URL         = os.environ.get('USER_SERVICE_URL',         'http://127.0.0.1:8001')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}

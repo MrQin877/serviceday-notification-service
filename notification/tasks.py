@@ -8,7 +8,7 @@ import logging
 from celery import shared_task
 
 from notification.services.notification_service import NotificationService
-
+from notification.realtime import push_to_user, push_to_all
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +29,7 @@ def send_broadcast_task(self, broadcast_id):
 
     try:
         service          = NotificationService()
-        emails, user_map = service.get_recipient_emails(  # ← unpack tuple
+        emails, user_map, user_id_map = service.get_recipient_emails(  # ← unpack tuple
             broadcast.target,
             ngo_ids=broadcast.ngo_ids
         )
@@ -86,6 +86,24 @@ def send_broadcast_task(self, broadcast_id):
 
     broadcast.recipients = success_count
     broadcast.save(update_fields=['recipients'])
+
+    if broadcast.target == "all":
+        # Only use push_to_all when truly broadcasting to everyone
+        push_to_all(
+            message    = f"📢 {broadcast.subject}",
+            notif_type = "broadcast",
+            event      = "broadcast",
+        )
+    else:
+        # Push only to specific recipients using their user_id
+        for email in emails:          # ← loops through ALL recipient emails
+            uid = user_id_map.get(email)
+            push_to_user(
+                user_id    = uid,
+                message    = f"📢 {broadcast.subject}",
+                notif_type = "broadcast",
+                event      = "broadcast",
+            )
     logger.info(f"[Broadcast] ID {broadcast_id}: {success_count}/{len(emails)} sent.")
 
 

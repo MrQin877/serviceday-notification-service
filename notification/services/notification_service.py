@@ -11,6 +11,7 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 from notification.middleware import track_notification
+from notification.realtime import push_to_user, push_to_all
 from django.db.models import Count, Q
 import requests
 import logging
@@ -217,7 +218,7 @@ See you there!
 
 — ServiceDay Team
 """
-        return self._send_email(
+        result = self._send_email(
             recipient_email = recipient_email,
             recipient_name  = recipient_name,
             subject         = subject,
@@ -226,6 +227,14 @@ See you there!
             ngo_id          = ngo_id,
             ngo_name        = ngo_name,
         )
+        if result:
+            push_to_user(
+                user_id   = employee_id,
+                message   = f"Your registration for {ngo_name} is confirmed! 🎉",
+                notif_type = "success",
+                event      = "confirmation",
+            )
+        return result
 
     # ── Registration Cancellation Email ───────────────
 
@@ -277,7 +286,7 @@ See you there!
 
         — ServiceDay Team
         """
-        return self._send_email(
+        result = self._send_email(
             recipient_email = recipient_email,
             recipient_name  = recipient_name,
             subject         = subject,
@@ -286,6 +295,14 @@ See you there!
             ngo_id          = ngo_id,
             ngo_name        = ngo_name,
         )
+        if result:
+            push_to_user(
+                user_id    = employee_id,
+                message    = f"Your registration for {ngo_name} has been cancelled.",
+                notif_type = "warning",
+                event      = "cancellation",
+            )
+        return result
 
     # ── Registration Switch Email ─────────────────────
 
@@ -352,7 +369,7 @@ Location : {new_location}
 
 — ServiceDay Team
 """
-        return self._send_email(
+        result = self._send_email(
             recipient_email = recipient_email,
             recipient_name  = recipient_name,
             subject         = subject,
@@ -361,6 +378,15 @@ Location : {new_location}
             ngo_id          = new_ngo_id,
             ngo_name        = new_ngo_name,
         )
+    
+        if result:
+            push_to_user(
+                user_id    = employee_id,
+                message    = f"You have switched to {new_ngo_name}. ✅",
+                notif_type = "success",
+                event      = "switch",
+            )
+        return result
 
     # ── Reminder Engine ───────────────────────────────
     # Topic 10.2 — called by Celery Beat every day at 08:00
@@ -510,10 +536,11 @@ We look forward to seeing you there!
                     timeout=10,
                 )
                 response.raise_for_status()
-                data     = response.json()
-                emails   = data.get('emails', [])
-                user_map = data.get('user_map', {})  # ← get user map
-                return emails, user_map               # ← return both
+                data        = response.json()
+                emails      = data.get('emails', [])
+                user_map    = data.get('user_map', {})
+                user_id_map = data.get('user_id_map', {}) 
+                return emails, user_map, user_id_map      
 
             if target == "activity" and ngo_ids:
                 response = requests.get(
@@ -523,14 +550,15 @@ We look forward to seeing you there!
                     timeout=10,
                 )
                 response.raise_for_status()
-                data     = response.json()
-                emails   = data.get('emails', [])
-                user_map = data.get('user_map', {})
-                return emails, user_map
+                data        = response.json()
+                emails      = data.get('emails', [])
+                user_map    = data.get('user_map', {})
+                user_id_map = data.get('user_id_map', {})  
+                return emails, user_map, user_id_map       
 
         except Exception as e:
             logger.error(f"[Recipients] Failed: {e}")
-        return [], {}
+            return [], {}, {}  
 
     # ── Active NGOs ───────────────────────────────────
 
