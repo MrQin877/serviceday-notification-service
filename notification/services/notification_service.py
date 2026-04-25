@@ -268,15 +268,15 @@ See you there!
         subject = f"Registration Cancelled — {ngo_name}"
         body    = f"""Hi {recipient_name},
 
-Your registration has been cancelled.
+        Your registration has been cancelled.
 
-Activity : {ngo_name}
-Date     : {service_date}
+        Activity : {ngo_name}
+        Date     : {service_date}
 
-If this was a mistake, you may re-register while slots are still available.
+        If this was a mistake, you may re-register while slots are still available.
 
-— ServiceDay Team
-"""
+        — ServiceDay Team
+        """
         return self._send_email(
             recipient_email = recipient_email,
             recipient_name  = recipient_name,
