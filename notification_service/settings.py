@@ -80,7 +80,7 @@ TEMPLATES = [
         },
     },
 ]
-
+#Setting socket
 ASGI_APPLICATION = 'notification_service.asgi.application'
 
 CHANNEL_LAYERS = {
