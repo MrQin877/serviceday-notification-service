@@ -48,7 +48,9 @@ INSTALLED_APPS = [
     'django_filters',
     'django_celery_beat',
     'channels',
+    'drf_spectacular',
     'notification',
+    
 ]
 
 MIDDLEWARE = [
@@ -156,6 +158,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
  
 SIMPLE_JWT = {
@@ -166,6 +169,14 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM':          'user_id',
 }
  
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Notification Service API',
+    'DESCRIPTION': 'API documentation for the notification service — broadcasts, reminders, and email triggers.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,  # hides the raw schema from the doc UIs
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'COMPONENT_SPLIT_REQUEST': True,  # separates request vs response schemas
+}
  
 # ── Redis Cache (Topic 9) ─────────────────────────────
 CACHES = {
